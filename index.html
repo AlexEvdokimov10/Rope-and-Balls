@@ -1,0 +1,358 @@
+<html>
+<head>
+    <title>JS Physics Demo</title>
+</head>
+
+<script>
+
+
+    class Node {
+        // Константы класса
+        static ELESTICITY_FAC = -0.6;
+        static FRICTION_FAC = 0.995;
+
+        // Конструктор класса
+        constructor(x, y, index, fixed) {
+            this.x = x;
+            this.y = y;
+            this.dx = 0;
+            this.dy = 0;
+            this.index = index;
+            this.fixed = fixed;
+            this.thickness = 0;
+        }
+
+        // Методы класса
+        addVector(ddx, ddy) {
+            if (!this.fixed) {
+                this.dx += ddx;
+                this.dy += ddy;
+            }
+        }
+
+        move(percentage) {
+            if (!this.fixed) {
+                this.x += this.dx * percentage;
+                this.y += this.dy * percentage;
+
+                if (this.y > 470) {
+                    this.y = 470;
+                    this.dy *= Node.ELESTICITY_FAC;
+                }
+
+                if (this.x < 10) {
+                    this.x = 10;
+                    this.dx *= Node.ELESTICITY_FAC;
+                }
+
+                if (this.x > 630) {
+                    this.x = 630;
+                    this.dx *= Node.ELESTICITY_FAC;
+                }
+
+                this.dx *= Node.FRICTION_FAC;
+                this.dy *= Node.FRICTION_FAC;
+            }
+        }
+
+        render(g) {
+            if (this.index < 47) {
+                g.fillStyle = "rgb(200,0,0)";
+                g.fillRect(this.x - this.thickness, this.y - this.thickness, 0, 0);
+            }
+        }
+    }
+
+
+    class Constraint {
+        length = 0
+        nodeA = null
+        nodeB = null
+        static AUTO_LENGTH = null
+
+        constructor(nodeA, nodeB, length) {
+
+            this.nodeA = nodeA;
+            this.nodeB = nodeB;
+            this.length = length;
+
+            if (length === Constraint.AUTO_LENGTH) {
+                this.length = this.getLength(nodeA, nodeB);
+            }
+        }
+
+        getAngle(nodeB, nodeA) {
+
+            var dx = nodeA.x - nodeB.x;
+            var dy = nodeA.y - nodeB.y;
+
+            return Math.atan2(dy, dx);
+        }
+
+        getLength(nodeA, nodeB) {
+
+            var dx = nodeA.x - nodeB.x;
+            var dy = nodeA.y - nodeB.y;
+
+            return Math.sqrt(dx * dx + dy * dy);
+
+        }
+
+        calcLength() {
+            return this.getLength(this.nodeA, this.nodeB);
+        }
+
+        calcAngle() {
+            return this.getAngle(this.nodeA, this.nodeB);
+        }
+
+        follow(nodeA, nodeB, p) {
+
+            var len = (this.getLength(this.nodeA, this.nodeB) - this.length) / 2 * 0.01;
+            var ang = this.getAngle(nodeA, nodeB);
+
+
+            nodeA.addVector(Math.cos(ang) * len * p,
+                Math.sin(ang) * len * p);
+        }
+
+        apply(percentage) {
+
+            this.follow(this.nodeA, this.nodeB, percentage);
+            this.follow(this.nodeB, this.nodeA, percentage);
+        }
+
+        render(g, startX) {
+            var ropeImage = new Image();
+            ropeImage.src = 'rope.png';
+
+            g.save();
+            g.translate(this.nodeA.x, this.nodeA.y);
+            g.rotate(this.calcAngle() - Math.PI / 2);
+            g.drawImage(ropeImage, startX, 0, 4, this.calcLength() + 2);
+            g.restore();
+        }
+    }
+
+    ////////
+
+    class Group {
+        constructor() {
+            this.nodes = [];
+            this.consts = [];
+            var str= '';
+
+
+            var d = document.getElementById('test-space');
+            d.innerHTML = str;
+
+            let canvas = document.getElementById('test-space');
+            this.context = canvas.getContext('2d');
+        }
+
+        addNode(index, x, y, fixed) {
+            let n = new Node(x, y, index, fixed);
+            if (this.nodes[index] === null || this.nodes[index] === undefined) {
+                this.nodes.push(n);
+            }
+        }
+
+        addNodeVec(index, dx, dy) {
+            if (this.nodes[index]) {
+                this.nodes[index].addVector(dx, dy);
+            }
+        }
+
+        addConst(indexA, indexB) {
+            let a = this.nodes[indexA];
+            let b = this.nodes[indexB];
+            if (a && b) {
+                let c = new Constraint(a, b, Constraint.AUTO_LENGTH);
+                this.consts.push(c);
+            }
+        }
+
+        doGravity(fac) {
+            this.nodes.forEach((n, i) => {
+                n.addVector(0, fac);
+                if (i > 47) {
+                    n.thickness += 0.5;
+                }
+            });
+        }
+
+        move(proc) {
+            this.nodes.forEach(node => {
+                node.move(proc);
+            });
+        }
+
+        applyConsts(proc) {
+            this.consts.forEach(n => {
+                n.apply(proc);
+            });
+        }
+
+        render(startX) {
+            this.nodes.forEach(n => {
+                n.render(this.context, startX);
+            });
+
+            this.consts.forEach(n => {
+                n.render(this.context, startX);
+            });
+        }
+
+        play(moveCoefficient, startX) {
+            this.context.clearRect(0, 0, 1000, 1000);
+            this.context.fillStyle = 'rgb(255,255,255)';
+            this.context.fillRect(0, 0, 1200, 1000);
+
+            this.doGravity(0.1);
+            this.applyConsts(180);
+            this.move(moveCoefficient);
+            this.render(startX);
+
+            if (ball && ball.visible) {
+                this.context.save();
+                this.context.translate(this.nodes[0].x, this.nodes[0].y);
+
+                this.context.drawImage(headImage, ball.x, ball.y, 183, 242);
+                this.context.restore();
+            }
+        }
+    }
+
+
+    var headImage = new Image();
+    headImage.src = 'ballRed.png';
+
+
+    var ball = {
+        x: -90,
+        y: -10,
+        visible: true,
+
+    };
+
+    var ropes = [{
+        group: null,
+        off2: 0,
+        stp: 5,
+        cntx: 0,
+        move: 1,
+        offsetX: 150,
+        startX: -2
+    }, {
+        group: null,
+        off2: 0,
+        stp: 0,
+        cntx: 10,
+        move: 0.5,
+        offsetX: 100,
+        startX: -2
+    }, ]
+
+
+    function init() {
+
+        ropes.forEach((rope, index) => {
+            rope.group = new Group();
+
+            console.log(rope.group)
+
+
+            var c = 0.2;
+
+            rope.group.addNode(0, 106 * c , 23 * c, false);
+            rope.group.addNode(1, 53 * c , 78 * c , false);
+            rope.group.addNode(2, 104 * c , 69 * c , false);
+            rope.group.addNode(3, 153 * c , 78 * c , false);
+            rope.group.addNode(4, 33 * c , 137 * c, false);
+            rope.group.addNode(5, 27 * c , 179 * c, false);
+            rope.group.addNode(6, 182 * c , 147 * c, false);
+            rope.group.addNode(7, 182 * c, 210 * c, false);
+            rope.group.addNode(8, 104 * c , 190 * c, false);
+            rope.group.addNode(9, 72 * c , 156 * c, false);
+            rope.group.addNode(10, 137 * c , 157 * c, false);
+
+
+
+            rope.group.addConst(0, 2);
+
+
+            rope.group.addConst(2, 3);
+
+
+            for (var x = 0; x < 25; x++) {
+                rope.group.addNode(x + 17, 150 * c + x * 5 + rope.offsetX, 78 * c, (x === 24 ? true : false));
+            }
+
+            for (var y = 0; y < 24; y++) {
+                rope.group.addConst(y + 17, y + 17 + 1);
+            }
+
+
+            rope.group.addConst(3, 17);
+
+            rope.off2 = rope.group.nodes.length;
+            rope.cntx = rope.group.nodes.length;
+        })
+
+    }
+
+
+    function play() {
+
+
+        ropes.forEach((rope) => {
+            rope.group.play(rope.move, rope.startX);
+
+            // Добавление новых узлов только если они не существуют
+            if (!rope.group.nodes[rope.cntx]) {
+                let r = Math.random() * Math.PI / 20; // случайный угол
+                let newDx = Math.cos(r - Math.PI + rope.stp) * (Math.random() * 5 + 10);
+                let newDy = Math.sin(r - Math.PI + rope.stp) * (Math.random() * 5 + 10);
+
+                rope.group.addNode(rope.cntx, 500, 100, false);
+                rope.group.nodes[rope.cntx].addVector(newDx, newDy);
+            }
+
+            // Увеличение индекса для следующего потенциального узла
+            rope.cntx++;
+
+            // Если достигли предела массива узлов, сбрасываем счётчик
+            if (rope.cntx >= 100) {
+                rope.cntx = rope.off2;
+            }
+
+        })
+
+        setTimeout(play, 3.5);
+
+
+    }
+
+
+    /*function movehead(e) {
+
+
+        var tempX = e.screenX;
+        var tempY = e.screenY;
+
+        group2.nodes[0].x = tempX;
+        group2.nodes[0].y = tempY;
+
+    }*/
+
+    window.onload = function () {
+        init()
+        play()
+    }
+
+</script>
+
+<body>
+<canvas id="test-space" width="1200" height="1000"></canvas>
+</body>
+</html>
