@@ -7,11 +7,11 @@
 
 
     class Node {
-        // Константы класса
-        static ELESTICITY_FAC = -0.6;
-        static FRICTION_FAC = 0.995;
 
-        // Конструктор класса
+        static ELESTICITY_FAC = -0.2;
+        static FRICTION_FAC = 0.996;
+
+
         constructor(x, y, index, fixed) {
             this.x = x;
             this.y = y;
@@ -22,7 +22,7 @@
             this.thickness = 0;
         }
 
-        // Методы класса
+
         addVector(ddx, ddy) {
             if (!this.fixed) {
                 this.dx += ddx;
@@ -35,8 +35,8 @@
                 this.x += this.dx * percentage;
                 this.y += this.dy * percentage;
 
-                if (this.y > 470) {
-                    this.y = 470;
+                if (this.y > 1000) {
+                    this.y = 1000;
                     this.dy *= Node.ELESTICITY_FAC;
                 }
 
@@ -45,10 +45,6 @@
                     this.dx *= Node.ELESTICITY_FAC;
                 }
 
-                if (this.x > 630) {
-                    this.x = 630;
-                    this.dx *= Node.ELESTICITY_FAC;
-                }
 
                 this.dx *= Node.FRICTION_FAC;
                 this.dy *= Node.FRICTION_FAC;
@@ -56,10 +52,12 @@
         }
 
         render(g) {
-            if (this.index < 47) {
-                g.fillStyle = "rgb(200,0,0)";
-                g.fillRect(this.x - this.thickness, this.y - this.thickness, 0, 0);
-            }
+            g.save()
+            g.fillStyle = "rgb(200,0,0)";
+            g.fillRect(this.x - this.thickness, this.y - this.thickness, 0, 0);
+
+            g.restore()
+
         }
     }
 
@@ -69,6 +67,7 @@
         nodeA = null
         nodeB = null
         static AUTO_LENGTH = null
+
 
         constructor(nodeA, nodeB, length) {
 
@@ -97,6 +96,7 @@
             return Math.sqrt(dx * dx + dy * dy);
 
         }
+
 
         calcLength() {
             return this.getLength(this.nodeA, this.nodeB);
@@ -129,18 +129,28 @@
             g.save();
             g.translate(this.nodeA.x, this.nodeA.y);
             g.rotate(this.calcAngle() - Math.PI / 2);
-            g.drawImage(ropeImage, startX, 0, 4, this.calcLength() + 2);
+            g.drawImage(ropeImage, startX, 0, 2, this.calcLength() + 2);
             g.restore();
         }
     }
 
+
     ////////
 
     class Group {
+
+        animationStartTime = Date.now();
+
+        isMovingRight = false; // Состояние движения вправо
+        stopTime = 0;
+        isSwinging = true
+        delayOnRedBall = false
+        delayOnWhiteBall = false
+        delayOnGreyBall = false
         constructor() {
             this.nodes = [];
             this.consts = [];
-            var str= '';
+            var str = '';
 
 
             var d = document.getElementById('test-space');
@@ -150,10 +160,27 @@
             this.context = canvas.getContext('2d');
         }
 
+
+        stopSwing() {
+            this.isSwinging = false;
+            this.stopTime = Date.now();
+        }
+
+        moveRight() {
+            // Проверяем, если шарики должны двигаться вправо
+            if (this.isMovingRight) {
+                this.nodes.forEach(node => {
+                    node.x += 10;
+                });
+            }
+        }
+
         addNode(index, x, y, fixed) {
-            let n = new Node(x, y, index, fixed);
-            if (this.nodes[index] === null || this.nodes[index] === undefined) {
-                this.nodes.push(n);
+            if (Number.isFinite(x) && Number.isFinite(y)) {
+                let n = new Node(x, y, index, fixed);
+                this.nodes.push(n); // Удалите проверку this.nodes[index], так как она не нужна при добавлении узла в массив
+            } else {
+                console.error('Invalid coordinates for node:', index, x, y);
             }
         }
 
@@ -183,7 +210,7 @@
 
         move(proc) {
             this.nodes.forEach(node => {
-                node.move(proc);
+                node.move(proc); // Движение для остальных узлов
             });
         }
 
@@ -194,6 +221,11 @@
         }
 
         render(startX) {
+
+            this.context.clearRect(0, 0, 1200, 1000);
+            this.context.fillStyle = 'rgb(255,255,255)';
+            this.context.fillRect(0, 0, 1200, 1000);
+
             this.nodes.forEach(n => {
                 n.render(this.context, startX);
             });
@@ -201,136 +233,213 @@
             this.consts.forEach(n => {
                 n.render(this.context, startX);
             });
+
+
+            if (this.nodes.length > 1) {
+                let angle = this.consts[1].calcAngle();
+                this.context.save();
+                this.context.translate(this.nodes[0].x, this.nodes[0].y);
+                this.context.rotate(angle + 366);
+
+                this.context.drawImage(redBallImg, -183 / 2, -10 );
+                this.context.restore();
+            }
+            if (this.nodes.length > 4) {
+
+                this.context.save();
+                let angle2 = this.consts[3].calcAngle();
+                this.context.translate(this.nodes[5].x, this.nodes[5].y);
+                this.context.rotate(angle2 + 366);
+
+                this.context.drawImage(whiteBallImg, - 130 / 2, -10 / 2);
+                this.context.restore();
+            }
+
+
+            if (this.nodes.length > 10) {
+
+                this.context.save();
+                let angle2 = this.consts[7].calcAngle();
+                this.context.translate(this.nodes[10].x, this.nodes[10].y);
+                this.context.rotate(angle2 + 366);
+
+                this.context.drawImage(greyBallImg, - 85 / 2, -10 / 2);
+                this.context.restore();
+            }
+
+
+
         }
 
+
+
         play(moveCoefficient, startX) {
-            this.context.clearRect(0, 0, 1000, 1000);
+
+            this.context.clearRect(0, 0, 1200, 1000);
             this.context.fillStyle = 'rgb(255,255,255)';
             this.context.fillRect(0, 0, 1200, 1000);
 
-            this.doGravity(0.1);
-            this.applyConsts(180);
-            this.move(moveCoefficient);
             this.render(startX);
 
-            if (ball && ball.visible) {
-                this.context.save();
-                this.context.translate(this.nodes[0].x, this.nodes[0].y);
 
-                this.context.drawImage(headImage, ball.x, ball.y, 183, 242);
-                this.context.restore();
-            }
+
+            this.applyConsts(180);
+
+            this.doGravity(0.05);
+
+            this.move(moveCoefficient);
+
+            this.moveRight();
+
+
         }
     }
 
 
-    var headImage = new Image();
-    headImage.src = 'ballRed.png';
 
 
-    var ball = {
+    var redBallImg = new Image();
+    redBallImg.src = 'ballRed.png';
+
+    var whiteBallImg = new Image();
+    whiteBallImg.src = 'ballWhite.png';
+    var greyBallImg = new Image();
+    greyBallImg.src = 'ballGrey.png';
+
+
+    var ballRed = {
         x: -90,
         y: -10,
         visible: true,
-
     };
 
-    var ropes = [{
-        group: null,
-        off2: 0,
-        stp: 5,
-        cntx: 0,
-        move: 1,
-        offsetX: 150,
-        startX: -2
-    }, {
-        group: null,
-        off2: 0,
-        stp: 0,
-        cntx: 10,
-        move: 0.5,
-        offsetX: 100,
-        startX: -2
-    }, ]
+    var ballWhite = {
+        x: -60,
+        y: -5,
+        visible: true,
+    };
+
+    var ballGrey = {
+        x: -50,
+        y: -10,
+        visible: true,
+    };
+
+    var rope =
+        {
+            id: 4,
+            group: null,
+            off2: 0.5,
+            stp: 0,
+            cntx: 10,
+            move: 1.3,
+            offsetX: 150,
+            offsetY: 10,
+            startX: -2,
+            c: 0.3
+        }
 
 
     function init() {
 
-        ropes.forEach((rope, index) => {
-            rope.group = new Group();
+        rope.group = new Group();
 
-            console.log(rope.group)
+        rope.group.addNode(0, 106 * rope.c + 10, 23 * rope.c + 100, false);
+        rope.group.addNode(1, 153 * rope.c + 10, 78 * rope.c + 70, false);
 
-
-            var c = 0.2;
-
-            rope.group.addNode(0, 106 * c , 23 * c, false);
-            rope.group.addNode(1, 53 * c , 78 * c , false);
-            rope.group.addNode(2, 104 * c , 69 * c , false);
-            rope.group.addNode(3, 153 * c , 78 * c , false);
-            rope.group.addNode(4, 33 * c , 137 * c, false);
-            rope.group.addNode(5, 27 * c , 179 * c, false);
-            rope.group.addNode(6, 182 * c , 147 * c, false);
-            rope.group.addNode(7, 182 * c, 210 * c, false);
-            rope.group.addNode(8, 104 * c , 190 * c, false);
-            rope.group.addNode(9, 72 * c , 156 * c, false);
-            rope.group.addNode(10, 137 * c , 157 * c, false);
+        for (let i = 0; i < 3; i++) {
+            rope.group.addNode(i + 1, (rope.offsetX * rope.c) + rope.offsetX, 5 * rope.c + 5, (i === 2 || i === 1 ? true : false));
+        }
+        rope.group.addConst(0, 1);
 
 
-
-            rope.group.addConst(0, 2);
-
-
-            rope.group.addConst(2, 3);
+        for (let i = 0; i < 2; i++) {
+            rope.group.addConst(i + 4, i + 4 + 1);
+        }
 
 
-            for (var x = 0; x < 25; x++) {
-                rope.group.addNode(x + 17, 150 * c + x * 5 + rope.offsetX, 78 * c, (x === 24 ? true : false));
-            }
-
-            for (var y = 0; y < 24; y++) {
-                rope.group.addConst(y + 17, y + 17 + 1);
-            }
+        rope.group.addConst(1, 4);
 
 
-            rope.group.addConst(3, 17);
+        ///////////////////////////////////////////////////////////////
 
-            rope.off2 = rope.group.nodes.length;
-            rope.cntx = rope.group.nodes.length;
-        })
+        var tempLegth = rope.group.nodes.length
+
+        rope.group.addNode(rope.group.nodes.length, 101 * rope.c + 350, 23 * rope.c + 220, false);
+        rope.group.addNode(rope.group.nodes.length, 132 * rope.c + 350, 78 * rope.c + 192, false);
+
+        for (let i = 0; i < 3; i++) {
+            rope.group.addNode(rope.group.nodes.length, 153 * rope.c + 500, 5 * rope.c + 5, (i === 2 || i === 1 ? true : false));
+        }
+
+        rope.group.addConst(tempLegth, tempLegth + 1);
+
+        tempLegth = tempLegth + 1
+
+
+        for (let i = 0; i < 3; i++) {
+            rope.group.addConst(i + tempLegth, i + tempLegth + 1);
+        }
+
+
+        //////////////////////////////////////////
+        console.log(tempLegth)
+        tempLegth = rope.group.nodes.length
+
+        rope.group.addNode(rope.group.nodes.length, 101 * rope.c + 650, 23 * rope.c + 100, false);
+        rope.group.addNode(rope.group.nodes.length, 132 * rope.c + 650, 78 * rope.c + 80, false);
+
+        for (let i = 0; i < 3; i++) {
+            rope.group.addNode(rope.group.nodes.length, 153 * rope.c + 750, 5 * rope.c + 5, (i === 2 || i === 1 ? true : false));
+        }
+
+        rope.group.addConst(tempLegth, tempLegth + 1);
+
+        tempLegth = tempLegth + 1
+
+
+        for (let i = 0; i < 3; i++) {
+            rope.group.addConst(i + tempLegth, i + tempLegth + 1);
+        }
+
+
+        rope.off2 = rope.group.nodes.length;
+        rope.cntx = rope.group.nodes.length;
+
+
+        setTimeout(() => {
+            rope.group.stopSwing()
+        }, 3500);
+
 
     }
 
 
     function play() {
 
-
-        ropes.forEach((rope) => {
-            rope.group.play(rope.move, rope.startX);
-
-            // Добавление новых узлов только если они не существуют
-            if (!rope.group.nodes[rope.cntx]) {
-                let r = Math.random() * Math.PI / 20; // случайный угол
-                let newDx = Math.cos(r - Math.PI + rope.stp) * (Math.random() * 5 + 10);
-                let newDy = Math.sin(r - Math.PI + rope.stp) * (Math.random() * 5 + 10);
-
-                rope.group.addNode(rope.cntx, 500, 100, false);
-                rope.group.nodes[rope.cntx].addVector(newDx, newDy);
+        if (!rope.group.isSwinging && !rope.group.isMovingRight) {
+            let currentTime = Date.now();
+            if (currentTime - rope.group.stopTime >= 1000) {
+                rope.group.isMovingRight = true;
             }
+        }
 
-            // Увеличение индекса для следующего потенциального узла
-            rope.cntx++;
-
-            // Если достигли предела массива узлов, сбрасываем счётчик
-            if (rope.cntx >= 100) {
-                rope.cntx = rope.off2;
-            }
-
-        })
-
-        setTimeout(play, 3.5);
+        setTimeout(()=>rope.group.play(rope.move, rope.startX),Math.random()*(200 - 100) + 100)
 
 
+
+        let r = Math.random() * Math.PI / 20;
+        let newDx = Math.cos(r - Math.PI + rope.stp) * (Math.random() * 5 + 10);
+        let newDy = Math.sin(r - Math.PI + rope.stp) * (Math.random() * 5 + 10);
+
+        rope.group.addNodeVec(rope.cntx, newDx, newDy)
+
+        rope.cntx++;
+
+        if (rope.cntx > 100) {
+            rope.cntx = rope.off2;
+        }
+        setTimeout(play, 0.1)
     }
 
 
